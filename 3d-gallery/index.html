@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Product Gallery</title>
+  <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 20px;
+      background: white;
+      border-bottom: 1px solid #ddd;
+    }
+    header h1 {
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+    }
+    header h1::before {
+      content: "\1F4CC";
+      margin-right: 8px;
+    }
+    #filters {
+      display: flex;
+      justify-content: center;
+      padding: 10px;
+      gap: 10px;
+    }
+    #product-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+      padding: 20px;
+    }
+    .card {
+      width: 250px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+      position: relative;
+      transition: transform 0.3s;
+    }
+    .card:hover {
+      transform: translateY(-5px);
+    }
+    .thumbnail-container {
+      width: 100%;
+      height: 300px;
+      position: relative;
+      overflow: hidden;
+    }
+    .thumbnail-container img,
+    .thumbnail-container model-viewer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transition: opacity 0.3s ease;
+    }
+    .thumbnail-container model-viewer {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .thumbnail-container:hover model-viewer {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .thumbnail-container:hover img {
+      opacity: 0;
+    }
+    .card-content {
+      text-align: center;
+      padding: 10px;
+    }
+    .card-content h3 {
+      margin: 10px 0 5px;
+      font-size: 1rem;
+    }
+    .card-content p {
+      margin: 0;
+      color: #555;
+    }
+    .card-content button {
+      margin-top: 10px;
+      padding: 5px 10px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #cart-button {
+      position: relative;
+      padding: 5px 10px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #cart-panel {
+      position: fixed;
+      top: 60px;
+      right: 20px;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px;
+      display: none;
+      z-index: 1000;
+      min-width: 200px;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+    #cart-panel.active {
+      display: block;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>3D Product Gallery</h1>
+    <div>
+      <input type="text" id="search" placeholder="Search products..." />
+      <select id="category">
+        <option value="all">All Categories</option>
+      </select>
+      <button id="cart-button">🛒 Cart (0)</button>
+    </div>
+  </header>
+
+  <div id="product-container"></div>
+  <div id="cart-panel"></div>
+
+  <script>
+    const products = [
+      {
+        name: "Ant Robot",
+        price: 25,
+        category: "robot",
+        thumbnail: "AntRobot.png",
+        model: "Ant_base_basic_shaded.glb",
+      },
+      {
+        name: "Panda Explorer",
+        price: 29,
+        category: "animal",
+        thumbnail: "Panda.png",
+        model: "Panda_base_basic_shaded.glb",
+      },
+      {
+        name: "Skeleton Warrior",
+        price: 32,
+        category: "warrior",
+        thumbnail: "skeleton.png",
+        model: "Skelly_base_basic_shaded.glb",
+      },
+    ];
+
+    const cart = {};
+    const cartButton = document.getElementById("cart-button");
+    const cartPanel = document.getElementById("cart-panel");
+    const container = document.getElementById("product-container");
+    const searchInput = document.getElementById("search");
+    const categorySelect = document.getElementById("category");
+
+    function updateCart() {
+      const entries = Object.entries(cart);
+      let total = 0;
+      let content = entries
+        .map(([name, { quantity, price }]) => {
+          total += price * quantity;
+          return `${quantity}x ${name} $${price * quantity}`;
+        })
+        .join("<br>");
+      content += `<hr><strong>Total: $${total}</strong>`;
+      cartPanel.innerHTML = content;
+      cartButton.textContent = `🛒 Cart (${entries.reduce(
+        (sum, [_, v]) => sum + v.quantity,
+        0
+      )})`;
+    }
+
+    cartButton.addEventListener("click", () => {
+      cartPanel.classList.toggle("active");
+    });
+
+    function renderProducts() {
+      container.innerHTML = "";
+      const keyword = searchInput.value.toLowerCase();
+      const filterCat = categorySelect.value;
+
+      products
+        .filter((p) =>
+          p.name.toLowerCase().includes(keyword) &&
+          (filterCat === "all" || p.category === filterCat)
+        )
+        .forEach((product) => {
+          const card = document.createElement("div");
+          card.className = "card";
+          card.innerHTML = `
+            <div class="thumbnail-container">
+              <img src="${product.thumbnail}" alt="${product.name}" />
+              <model-viewer src="${product.model}" auto-rotate camera-controls></model-viewer>
+            </div>
+            <div class="card-content">
+              <h3>${product.name}</h3>
+              <p>$${product.price.toFixed(2)}</p>
+              <button onclick="addToCart('${product.name}', ${product.price})">Add to Cart</button>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+    }
+
+    function addToCart(name, price) {
+      if (!cart[name]) {
+        cart[name] = { quantity: 1, price };
+      } else {
+        cart[name].quantity++;
+      }
+      updateCart();
+    }
+
+    searchInput.addEventListener("input", renderProducts);
+    categorySelect.addEventListener("change", renderProducts);
+
+    const categories = Array.from(new Set(products.map((p) => p.category)));
+    categories.forEach((cat) => {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      opt.textContent = cat[0].toUpperCase() + cat.slice(1);
+      categorySelect.appendChild(opt);
+    });
+
+    renderProducts();
+  </script>
+</body>
+</html>
